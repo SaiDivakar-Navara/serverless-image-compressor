@@ -4,6 +4,7 @@ A serverless image compression tool built with AWS Lambda, API Gateway, and Terr
 
 ## Architecture
 
+![Architecture diagram](./assets/architecture.png)
 
 efasfqerewfdwe
 
