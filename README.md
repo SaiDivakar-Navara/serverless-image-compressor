@@ -6,8 +6,6 @@ A serverless image compression tool built with AWS Lambda, API Gateway, and Terr
 
 ![Architecture diagram](./assets/architecture.png)
 
-efasfqerewfdwe
-
 The image is sent as base64-encoded JSON, compressed in-memory by Lambda, and the compressed result is returned directly in the same HTTP response — fully synchronous, no polling or storage step required.
 
 ## Tech stack
