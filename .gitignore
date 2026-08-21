@@ -1,0 +1,23 @@
+# Terraform state files — contain sensitive data (ARNs, resource IDs, sometimes secrets)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform working directory — downloaded providers, plugins
+.terraform/
+.terraform.lock.hcl
+
+# Terraform plan output files
+*.tfplan
+crash.log
+crash.*.log
+
+# Variable files that may contain secrets — only ignore if you create one
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Zipped build artifacts — these are generated, not source code
+lambda.zip
+layer.zip
+lambda-layer/

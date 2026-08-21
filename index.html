@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Compressor — Serverless</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171c;
+    --bg-panel: #1b1f26;
+    --bg-panel-2: #21262f;
+    --border: #2c323c;
+    --border-soft: #262b33;
+    --text: #e8eaed;
+    --text-dim: #8b929e;
+    --text-faint: #565d68;
+    --amber: #f2a93c;
+    --amber-dim: #7a5a24;
+    --green: #4fbf7a;
+    --red: #e0664f;
+    --radius: 10px;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    background-image:
+      linear-gradient(var(--border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+    background-size: 34px 34px;
+    background-position: -1px -1px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 56px 20px;
+  }
+
+  .wrap{ width: 100%; max-width: 720px; }
+
+  .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--amber);
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .eyebrow::before{
+    content: "";
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(79,191,122,0.15);
+  }
+
+  h1{
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .sub{
+    color: var(--text-dim);
+    font-size: 14.5px;
+    margin: 0 0 32px;
+    line-height: 1.6;
+  }
+  .sub code{
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--amber);
+  }
+
+  /* pipeline strip — signature element */
+  .pipeline{
+    display: flex;
+    align-items: center;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 24px;
+  }
+  .stage{
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .stage-dot{
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    transition: all 0.3s ease;
+  }
+  .stage-label{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-faint);
+    transition: color 0.3s ease;
+    white-space: nowrap;
+  }
+  .stage.active .stage-dot{
+    border-color: var(--amber);
+    color: var(--amber);
+    box-shadow: 0 0 0 4px rgba(242,169,60,0.12);
+  }
+  .stage.active .stage-label{ color: var(--amber); }
+  .stage.done .stage-dot{
+    border-color: var(--green);
+    background: var(--green);
+    color: #0f1512;
+  }
+  .stage.done .stage-label{ color: var(--green); }
+  .stage.error .stage-dot{ border-color: var(--red); color: var(--red); }
+  .stage.error .stage-label{ color: var(--red); }
+  .stage-connector{
+    flex: 0 0 auto;
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin: 0 10px;
+    max-width: 40px;
+    position: relative;
+    top: -10px;
+  }
+
+  /* dropzone */
+  .dropzone{
+    background: var(--bg-panel);
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 44px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color: var(--amber);
+    background: var(--bg-panel-2);
+  }
+  .dropzone input{ display: none; }
+  .dz-icon{
+    width: 42px; height: 42px;
+    margin: 0 auto 14px;
+    border-radius: 8px;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dz-icon svg{ width: 20px; height: 20px; stroke: var(--amber); }
+  .dz-title{ font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .dz-sub{ font-size: 13px; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; }
+
+  /* preview + controls */
+  .panel{
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 16px;
+    display: none;
+  }
+  .panel.show{ display: block; }
+
+  .file-row{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .thumb{
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg-panel-2);
+  }
+  .file-meta{ min-width: 0; flex: 1; }
+  .file-name{
+    font-size: 14px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-size{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text-dim); margin-top: 2px;
+  }
+  .file-size .arrow{ color: var(--text-faint); margin: 0 6px; }
+  .file-size .new{ color: var(--green); }
+  .remove-btn{
+    background: none; border: 1px solid var(--border);
+    color: var(--text-faint);
+    width: 30px; height: 30px; border-radius: 7px;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .remove-btn:hover{ border-color: var(--red); color: var(--red); }
+
+  .field{ margin-bottom: 18px; }
+  .field-label{
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; font-weight: 500; margin-bottom: 10px;
+  }
+  .field-label span:last-child{
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--amber); font-size: 13px;
+  }
+  input[type="range"]{
+    
+    width: 100%; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--amber);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid #14171c;
+    box-shadow: 0 0 0 1px var(--amber);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width: 14px; height: 14px;
+    background: var(--amber);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid #14171c;
+    box-shadow: 0 0 0 1px var(--amber);
+  }
+
+  .format-row{ display: flex; gap: 8px; }
+  .format-opt{
+    flex: 1;
+    padding: 9px 0;
+    text-align: center;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .format-opt.active{
+    border-color: var(--amber);
+    color: var(--amber);
+    background: rgba(242,169,60,0.08);
+  }
+
+  .endpoint-field{
+    margin-bottom: 18px;
+  }
+  .endpoint-field input[type="text"]{
+    width: 100%;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .endpoint-field input[type="text"]:focus{ border-color: var(--amber); }
+  .endpoint-field input[type="text"]::placeholder{ color: var(--text-faint); }
+
+  .btn{
+    width: 100%;
+    background: var(--amber);
+    color: #191307;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 0;
+    font-size: 14.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.05s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn:hover{ filter: brightness(1.08); }
+  .btn:active{ transform: scale(0.99); }
+  .btn:disabled{
+    background: var(--bg-panel-2);
+    color: var(--text-faint);
+    cursor: not-allowed;
+  }
+  .btn .spinner{
+    width: 14px; height: 14px;
+    border: 2px solid rgba(25,19,7,0.3);
+    border-top-color: #191307;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn.loading .spinner{ display: inline-block; }
+  .btn.loading .btn-label{ opacity: 0.7; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .status-box{
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    display: none;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .status-box.show{ display: block; }
+  .status-box.ok{ background: rgba(79,191,122,0.08); border: 1px solid rgba(79,191,122,0.3); color: var(--green); }
+  .status-box.err{ background: rgba(224,102,79,0.08); border: 1px solid rgba(224,102,79,0.3); color: var(--red); }
+
+  .result-download{
+    display: none;
+    margin-top: 14px;
+    text-align: center;
+    padding: 10px;
+    border-radius: 7px;
+    border: 1px solid var(--green);
+    color: var(--green);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .result-download.show{ display: block; }
+
+  footer{
+    margin-top: 28px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 480px){
+    .stage-label{ display: none; }
+    .pipeline{ padding: 16px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">SERVERLESS · S3 → LAMBDA → S3</div>
+  <h1>Image compressor</h1>
+  <p class="sub">Drop an image, it's sent to the input bucket, compressed by Lambda, and returned from the output bucket. Point <code>API_ENDPOINT</code> in the script tag at your API Gateway URL.</p>
+
+  <div class="pipeline">
+    <div class="stage active" id="stage-upload">
+      <div class="stage-dot">1</div>
+      <div class="stage-label">upload</div>
+    </div>
+    <div class="stage-connector"></div>
+    <div class="stage" id="stage-compress">
+      <div class="stage-dot">2</div>
+      <div class="stage-label">compress</div>
+    </div>
+    <div class="stage-connector"></div>
+    <div class="stage" id="stage-done">
+      <div class="stage-dot">3</div>
+      <div class="stage-label">done</div>
+    </div>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="dz-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div class="dz-title">Drop an image, or click to browse</div>
+    <div class="dz-sub">JPG · PNG · WEBP</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="file-row">
+      <img class="thumb" id="thumb" alt="preview">
+      <div class="file-meta">
+        <div class="file-name" id="fileName">—</div>
+        <div class="file-size" id="fileSize">—</div>
+      </div>
+      <button class="remove-btn" id="removeBtn" title="Remove file">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Quality</span><span id="qualityVal">75</span></div>
+      <input type="range" id="quality" min="10" max="95" value="75">
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Output format</span></div>
+      <div class="format-row" id="formatRow">
+        <div class="format-opt active" data-fmt="original">original</div>
+        <div class="format-opt" data-fmt="jpeg">jpeg</div>
+        <div class="format-opt" data-fmt="webp">webp</div>
+        <div class="format-opt" data-fmt="png">png</div>
+      </div>
+    </div>
+
+    <button class="btn" id="uploadBtn">
+      <span class="spinner"></span>
+      <span class="btn-label">Compress image</span>
+    </button>
+
+    <div class="status-box" id="statusBox"></div>
+    <a class="result-download" id="resultLink" download>↓ download compressed image</a>
+  </div>
+
+  <footer>terraform apply · s3 event notification · lambda runtime: python3.12</footer>
+</div>
+
+<script>
+  // ---- CONFIG ----
+  // Paste your API Gateway URL here (the "api_url" output from terraform apply).
+  // Example: "https://abc123xyz.execute-api.us-east-1.amazonaws.com/mystage/resource"
+  const API_ENDPOINT = "paste-here";
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const panel = document.getElementById('panel');
+  const thumb = document.getElementById('thumb');
+  const fileName = document.getElementById('fileName');
+  const fileSize = document.getElementById('fileSize');
+  const removeBtn = document.getElementById('removeBtn');
+  const quality = document.getElementById('quality');
+  const qualityVal = document.getElementById('qualityVal');
+  const formatRow = document.getElementById('formatRow');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const statusBox = document.getElementById('statusBox');
+  const resultLink = document.getElementById('resultLink');
+
+  const stageUpload = document.getElementById('stage-upload');
+  const stageCompress = document.getElementById('stage-compress');
+  const stageDone = document.getElementById('stage-done');
+
+  let currentFile = null;
+  let selectedFormat = 'original';
+
+  function formatBytes(bytes){
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  function setStage(stage){
+    [stageUpload, stageCompress, stageDone].forEach(s => s.classList.remove('active','done','error'));
+    if (stage === 'upload'){ stageUpload.classList.add('active'); }
+    if (stage === 'compress'){ stageUpload.classList.add('done'); stageCompress.classList.add('active'); }
+    if (stage === 'done'){ stageUpload.classList.add('done'); stageCompress.classList.add('done'); stageDone.classList.add('done'); }
+    if (stage === 'error'){ stageUpload.classList.add('done'); stageCompress.classList.add('error'); }
+    if (stage === 'reset'){ stageUpload.classList.add('active'); }
+  }
+
+  function handleFile(file){
+    if (!file || !file.type.startsWith('image/')) return;
+    currentFile = file;
+    const reader = new FileReader();
+    reader.onload = e => { thumb.src = e.target.result; };
+    reader.readAsDataURL(file);
+    fileName.textContent = file.name;
+    fileSize.textContent = formatBytes(file.size);
+    panel.classList.add('show');
+    statusBox.classList.remove('show','ok','err');
+    resultLink.classList.remove('show');
+    setStage('reset');
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+  ['dragenter','dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    handleFile(file);
+  });
+
+  removeBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    currentFile = null;
+    fileInput.value = '';
+    panel.classList.remove('show');
+  });
+
+  quality.addEventListener('input', () => { qualityVal.textContent = quality.value; });
+
+  formatRow.addEventListener('click', e => {
+    const opt = e.target.closest('.format-opt');
+    if (!opt) return;
+    formatRow.querySelectorAll('.format-opt').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    selectedFormat = opt.dataset.fmt;
+  });
+
+  function showStatus(type, text){
+    statusBox.className = 'status-box show ' + type;
+    statusBox.textContent = text;
+  }
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!currentFile){ showStatus('err', 'No file selected.'); return; }
+    const endpoint = API_ENDPOINT.trim();
+    if (!endpoint){ showStatus('err', 'API endpoint not configured. Set API_ENDPOINT in the script.'); return; }
+
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('loading');
+    resultLink.classList.remove('show');
+    setStage('upload');
+    showStatus('ok', 'Uploading to input bucket...');
+
+    try {
+      // Convert the file to base64 text so it can travel as plain JSON —
+      // API Gateway + Lambda proxy handles this more reliably than multipart.
+      const fileBase64 = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result.split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(currentFile);
+      });
+
+      setStage('compress');
+      showStatus('ok', 'Lambda compressing image...');
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file: fileBase64,
+          quality: quality.value,
+          format: selectedFormat
+        })
+      });
+
+      if (!res.ok){
+        throw new Error('Request failed with status ' + res.status);
+      }
+
+      const data = await res.json();
+      if (data.error){
+        throw new Error(data.error);
+      }
+
+      const byteChars = atob(data.image);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++){
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/' + data.format });
+      const downloadUrl = URL.createObjectURL(blob);
+      const newSizeLabel = ' → ' + formatBytes(data.compressedSize);
+
+      setStage('done');
+      fileSize.innerHTML = formatBytes(currentFile.size) +
+        '<span class="arrow">→</span><span class="new">' + newSizeLabel.replace(' → ','') + '</span>';
+      showStatus('ok', 'Done. Compressed image ready.');
+      resultLink.href = downloadUrl;
+      resultLink.classList.add('show');
+
+    } catch (err) {
+      setStage('error');
+      showStatus('err', 'Error: ' + err.message + '\n\nCheck the endpoint URL, CORS settings on API Gateway, and Lambda logs in CloudWatch.');
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.classList.remove('loading');
+    }
+  });
+</script>
+
+</body>
+</html>
